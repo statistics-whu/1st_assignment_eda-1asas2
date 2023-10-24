@@ -1,0 +1,186 @@
+---
+title: "链家武汉二手房数据分析"
+author: "李倩"
+date: "`r Sys.Date()`"
+documentclass: ctexart
+output:
+  pdf_document:
+    latex_engine: xelatex
+  word_document:
+    toc: yes
+  html_document:
+    code_folding: show
+    fig_caption: yes
+    fig_width: 10
+    highlight: tango
+    number_sections: yes
+    theme: cosmo
+    toc: yes
+---
+```{r setup, include = FALSE,echo = FALSE}
+knitr::opts_chunk$set(echo = FALSE,error = FALSE, warning = FALSE, message = FALSE,
+                      out.width = "100%", split = FALSE, fig.align = "center")
+#load library
+library(tidyverse)
+library(dplyr)
+library(ggplot2)
+library(lubridate)
+library(scales)
+library(plotly)
+library(patchwork)
+library(ggrepel)
+```
+
+# 数据介绍
+
+本报告**链家**数据获取方式如下：
+
+报告人在2023年9月12日获取了[链家武汉二手房网站](https://wh.lianjia.com/ershoufang/)数据。
+
+- 链家二手房网站默认显示100页，每页30套房产，因此本数据包括3000套房产信息；
+
+- 数据包括了页面可见部分的文本信息，具体字段及说明见作业说明。
+
+**说明：**数据仅用于教学；由于不清楚链家数据的展示规则，因此数据可能并不是武汉二手房市场的随机抽样，结论很可能有很大的偏差，甚至可能是错误的。
+
+
+```{r}
+
+# 载入数据
+library (readr)
+ljwh <- read_csv("D:/WHU/Data Analysi/1st_assignment/data/1st_assignment_eda-1asas2/data/2023-09-12_cleaned.csv")
+
+
+#各变量的简短信息
+glimpse(ljwh)
+
+#各变量的简短统计
+summary(ljwh)
+
+#装修情况统计
+ljwh %>%
+  group_by(decoration) %>%
+  summarise(数量 = n(), .groups = 'drop')
+
+#建筑形式统计
+ljwh %>%
+  group_by(property_style) %>%
+  summarise(数量 = n(), .groups = 'drop')
+```
+
+可以看到：
+1.【followers】房屋的最高关注人数有262，最低关注人数为0，平均关注人数6.614，中位数为3；
+2.【price_ttl】房屋总价最高为1380万元，最低为10.6万元，平均总价为155.9万元，中位数为137万元；
+3.【price_sqm】房屋单价最高为44656元，最低为177元，平均单价15148元，中位数为14404元；
+4.【bedrooms】房间数最多为7个，最少1个，平均拥有2.695个房间；
+5.【livingrooms】客厅数量最多有4个，最少0个，平均拥有1.709个；
+6.【building_area】建筑面积最大为588.66，最少为22.77，平均面积100.87；
+7.【property_t_height】楼栋总层数最高为62层，最低2层，平均24.22层；
+8.【decoration】房屋装修情况统计中，精装的房屋数量最多，共1757；
+9.【property_style】建筑形式统计中，板楼数量最多，平房数量最少。
+
+
+
+#探索性分析
+
+##数值描述与图形1
+##房价分布
+```{r}
+ggplot(data = ljwh, aes(x=price_ttl)) + 
+  geom_histogram(binwidth=50, fill="blue", color="white") +
+  labs(title="武汉二手房价格分布", x="房价", y="数量")
+```
+
+发现：
+1.大部分的房屋价格集中在0至400的范围内。
+2.房屋价格在大约100至250的范围内的频率是最高的，意味着这个价格区间的房屋数量最多。
+3.随着价格的上升，房屋数量逐渐减少，表现为长尾分布。特别是在400之后，房屋数量急剧减少。
+4.在600至800的价格范围内，仍然存在少量的高价房屋。
+
+
+##数值描述与图形2
+##绘制房价与房屋面积之间的散点图
+
+```{r}
+ggplot(data = ljwh, aes(x = building_area, y = price_ttl)) +   
+  geom_point(color = "red", alpha = 0.3) +   
+  theme_minimal() +  
+  xlab("房屋面积") +   
+  ylab("房价") +  
+  ggtitle("房屋面积与房价的关系")
+```
+发现：
+1.散点图的总体趋势表明，随着房屋面积的增加，房价通常也会增加；
+2.在40-120的房屋面积范围内，大多数的点集中在较低的房价范围，特别是在200以下；
+3.当房屋面积超过120之后，房价的分布相对比较分散，但总体上还是呈上升趋势；
+4.存在一些异常值或离群点，例如在房屋面积较小的时候，房价却较高，或者在房屋面积较大的时候，房价却相对较低。这可能是由于其他因素导致的，如房屋的位置、装修程度、所在的小区等。
+总之，虽然房屋面积与房价之间存在正相关关系，但还有其他因素可能影响房价。
+
+
+##数值描述与图形3
+##绘制房价与房屋面积/房间数之间关系的散点图
+```{r}
+ggplot(data = ljwh, aes(x = building_area, y = price_ttl, color = bedrooms)) +  
+  geom_point(size = 4) +  
+  labs(title = "房屋总价和面积、房间数关系图", x = "面积（平方米）", y = "总价（万元）") +  
+  theme_minimal() +  
+  theme(axis.text.x = element_text(angle = 23, hjust = 5))
+```
+发现：
+1.总价与面积关系：房屋的总价与其面积呈现出明显的正相关关系。即随着面积的增加，房屋的总价也在上升。
+2.分布特点：大部分的数据点集中在左下角，表示大多数的房屋面积和总价都相对较低。但是，也有一些数据点散布在右上角，表示有些房屋即使面积不大，但总价也很高，可能这些房屋位于高价地段或有其他特殊属性。
+3.离群点：在图的右侧和上方，我们可以看到一些离群点。这些可能代表特殊的房屋，例如，面积不大但总价很高的房屋，或者面积很大但总价相对较低的房屋。需要进一步分析这些房屋的其他属性，才能判断其总价的形成原因。
+
+
+##探索问题1
+房屋单价较高的小区是否均在繁华地带？
+#房屋单价排名前10的小区
+```{r}
+result <- ljwh %>%  
+  group_by(property_name) %>%  
+  summarise(average_price = mean(price_sqm)) 
+result <- result[order(result$average_price, decreasing = TRUE), ]
+top_10 <- result[1:10, ]
+print(top_10)
+ggplot(top_10, aes(x = reorder(property_name, average_price), y = average_price)) +  
+  geom_bar(stat = "identity") +  
+  theme_minimal() +  
+  labs(title = "前10名小区的平均房屋单价", x = "小区", y = "平均房屋单价") +  
+  coord_flip()
+```
+发现：
+1.房价排名前10的小区基本均在热门商圈，处于繁华地带；
+2.同一小区不同房子的单价也有区别。
+
+
+##探索问题2
+房屋面积对房屋关注度的影响
+```{r}
+ggplot(data = ljwh, aes(x =followers, y = building_area)) +  
+  geom_point() +  
+  labs(title = "房屋面积与房屋关注人数关系图",  
+       x = "房屋关注人数",  
+       y = "房屋面积（平方米）") +  
+  theme_minimal()
+```
+发现:
+1.主要的数据集中：大部分关注人数集中在0到25范围内，房屋面积分布在40到160之间。
+2.缺乏明确趋势：在关注人数较低的范围内，尽管有大量数据点，但它们在房屋面积轴上分布较为均匀，没有明显的线性关系。
+3.孤立数据点：关注人数25到100之间有一些分散的数据点，它们在图上显得相对孤立，可能代表一些特定的房屋或区域。
+4.大面积房屋的关注度：在房屋面积高于140的部分，只有少数几个数据点，这可能意味着大面积的房屋关注度不高。
+5.中等关注度的房屋较少：在关注人数25到50范围内，数据点较少，这可能表示这一区域的房屋表现比较平庸。
+6.较低关注度的房屋面积分布广泛：在关注人数低于25的部分，房屋面积分布从40到160不等，说明在这个关注度范围内，房屋面积分布差异明显。
+这张图展示了房屋关注度与房屋面积之间的分布，但两者之间没有明显的趋势关系。
+
+
+#发现总结
+影响武汉二手房房价的因素多种多样，可以主要归纳为以下几点：
+1.地理位置：这是影响房价的重要因素，核心区域的二手房价格通常较高。
+这些区域通常拥有更完善的设施和更便利的交通，因此更吸引购房者。
+2.交通便利性：房屋周边的交通便利性也会对房价产生重要影响。是否临近地铁，
+交通便利的区域通常更吸引购房者，因此房价相对较高。
+3.房屋的品质：房屋的品质和装修情况也是影响房价的因素。一些装修较好、品质较高的房屋可能会吸引更多的购房者，从而推高房价。
+4.区域特性：不同区域的二手房价格也可能存在差异。例如，武昌地区的房价相对较高，这主要受到该区域教育资源丰富、商业发达、环境优美等因素的影响。
+而汉口地区由于交通便利性较好，也吸引了众多购房者。
+这些因素可能单独或共同作用，影响武汉二手房的房价。
+需要注意的是，房价会随着时间和市场环境而波动，因此购房者在购买二手房时，应充分考虑这些因素，合理评估自己的需求和能力，做出明智的决策。
